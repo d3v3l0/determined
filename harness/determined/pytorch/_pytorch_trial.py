@@ -661,6 +661,8 @@ class PyTorchTrial(det.Trial):
        optimization step for the optimizers on your own in :meth:`train_batch`.
        Users are able to use arbitrary number of models, optimizers, and LR schedulers
        and run the forward and backward passes and step optimizers in arbitrary orders.
+       See `Migration guide`_ for details to migrate from the old interface in bullet
+       point 1 to this one.
     """
 
     trial_controller_class = PyTorchTrialController

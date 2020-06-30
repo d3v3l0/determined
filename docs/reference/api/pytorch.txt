@@ -81,6 +81,8 @@ structures of the following types, which will be fed directly to the
           "label": (torch.Tensor([0, 0]), torch.Tensor([[0, 0], [0, 0]])),
       }
 
+.. _pytorch-trial-context:
+
 Trial Context
 ~~~~~~~~~~~~~
 
@@ -133,8 +135,8 @@ Then, implement the ``build_callbacks`` function in ``PyTorchTrial``:
         return {"reduce_lr": ReduceLROnPlateauEveryValidationStep(self.context)}
 
 
-``Gradient Clipping``
-^^^^^^^^^^^^^^^^^^^^^
+Gradient Clipping
+^^^^^^^^^^^^^^^^^
 
 To perform gradient clipping Determined provides two pre-made callback classes:
 
@@ -143,6 +145,32 @@ To perform gradient clipping Determined provides two pre-made callback classes:
 
 .. autoclass:: determined.pytorch.ClipGradsL2Value
     :members:
+
+
+Migration guide
+~~~~~~~~~~~~~~~
+
+As illustrated in `PytorchTrial <determined.pytorch.PyTorchTrial_>`_ , we introduce a
+new method to define a Pytorch trial by initializing models, optimizers,
+and LR schedulers in the ``__init__`` and customizing training loop in ``train_batch``
+by manually running forward and backward passes.
+Compared to the previous method that returns those objects in the implemented abstract
+methods, the new method is flexible and transparent. To migrate your implementation of
+`PytorchTrial <determined.pytorch.PyTorchTrial_>`_ from the previous method,
+here are the following places you need to change in your code:
+
+1. Wrap models, optimizers, and LR schedulers in the ``__init__`` with the methods
+   ``Model``, ``Optimizer``, and ``LRScheduler`` that are provided by
+   `PyTorchTrialContext <pytorch-trial-context_>`_. At the same time,
+   remove the implementation of ``build_model``, ``optimizer``, and ``create_lr_scheduler``.
+2. If using automatic mixed precision (AMP), configure Apex AMP in the ``__init__``
+   with the method ``configure_apex_amp`` that is provided by
+   `PyTorchTrialContext <pytorch-trial-context_>`_.
+   At the same time, remove the experiment configuration ``optimizations.mixed_precision``.
+3. Run backward passes on losses and step optimizers in ``train_batch`` with the methods
+   ``backward`` and ``step_optimizer`` provided by `PyTorchTrialContext <pytorch-trial-context_>`_.
+   Clip graidents by passing a function to the ``clip_grads`` argument of ``step_optimizer``
+   while removing the ``PytorchCallback`` counterpart in ``build_callbacks``.
 
 Examples
 --------
