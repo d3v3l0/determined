@@ -50,15 +50,15 @@ class PyTorchTrialController(det.LoopTrialController):
                 "and context.step_optimizer(optimizer) in train_batch.",
             )
 
-            model = self.context._Model(self.trial.build_model())
-            optim = self.context._Optimizer(self.trial.optimizer(model))
+            model = self.context.Model(self.trial.build_model())
+            optim = self.context.Optimizer(self.trial.optimizer(model))
 
             lr_scheduler = self.trial.create_lr_scheduler(optim)
             if lr_scheduler is not None:
                 self.context.lr_schedulers.append(lr_scheduler)
 
             if det.ExperimentConfig(self.context.get_experiment_config()).mixed_precision_enabled():
-                self.context._configure_apex_amp(
+                self.context.configure_apex_amp(
                     models=model,
                     optimizers=optim,
                     opt_level=self.context.get_experiment_config()
@@ -88,8 +88,8 @@ class PyTorchTrialController(det.LoopTrialController):
                     for callback in self.callbacks.values():
                         callback.on_before_optimizer_step(parameters)
 
-                self.context._backward(tr_metrics["loss"])
-                self.context._step_optimizer(self.context.optimizers[0], clip_grads=clip_grads)
+                self.context.backward(tr_metrics["loss"])
+                self.context.step_optimizer(self.context.optimizers[0], clip_grads=clip_grads)
                 return tr_metrics
 
             self.trial.__setattr__("train_batch", new_train_batch)
@@ -307,7 +307,7 @@ class PyTorchTrialController(det.LoopTrialController):
         for batch_idx in range(start, end):
             batch = next(self.training_iterator)
             num_inputs += data_length(batch)
-            batch = self.context._to_device(batch)
+            batch = self.context.to_device(batch)
 
             self.context._current_batch_idx = batch_idx
             self.context._loss_ids = {}
@@ -387,7 +387,7 @@ class PyTorchTrialController(det.LoopTrialController):
             self.validation_loader = cast(torch.utils.data.DataLoader, self.validation_loader)
             check.gt(len(self.validation_loader), 0)
             for batch in self.validation_loader:
-                batch = self.context._to_device(batch)
+                batch = self.context.to_device(batch)
                 num_inputs += data_length(batch)
 
                 vld_metrics = self.trial.evaluate_batch(batch=batch, model=self.context.models[0])
@@ -649,20 +649,19 @@ class PyTorchTrial(det.Trial):
     """
     PyTorch trials are created by subclassing the abstract class
     :class:`PyTorchTrial`.
-    """
 
-    # TODO(DET-3204): Add the following comments to the docstring.
-    # There are two different methods to define models, optimizers, and LR schedulers.
-    #
-    # 1. Define the abstract methods for the only model, optimizer, and LR scheduler and
-    #    Determine will initialize them for the users. Note this method doesn't support
-    #    multiple models, optimizers, and LR schedulers.
-    #
-    # 2. Initialize models, optimizers, and LR schedulers in the :meth:`__init__`.
-    #    If using this way, users should calculate the gradients with the losses and call an
-    #    optimization step for the optimizers on your own in :meth:`train_batch`.
-    #    Users are able to use arbitrary number of models, optimizers, and LR schedulers
-    #    and run the forward and backward passes and step optimizers in arbitrary orders.
+    There are two different methods to define models, optimizers, and LR schedulers.
+
+    1. Define the abstract methods for the only model, optimizer, and LR scheduler and
+       Determine will initialize them for the users. Note this method doesn't support
+       multiple models, optimizers, and LR schedulers.
+
+    2. Initialize models, optimizers, and LR schedulers in the :meth:`__init__`.
+       If using this way, users should calculate the gradients with the losses and call an
+       optimization step for the optimizers on your own in :meth:`train_batch`.
+       Users are able to use arbitrary number of models, optimizers, and LR schedulers
+       and run the forward and backward passes and step optimizers in arbitrary orders.
+    """
 
     trial_controller_class = PyTorchTrialController
     trial_context_class = PyTorchTrialContext
@@ -676,33 +675,32 @@ class PyTorchTrial(det.Trial):
         function implementations.
 
         Models, optimizers, and LR schedulers can be defined in the abstract methods.
-        """
 
-        # TODO(DET-3204): Add the following comments to the docstring.
-        # Alternatively, we could initialize them with the methods provided by
-        # :py:class:`det.pytorch.PytorchTrialContext`, including ``Model``,
-        # ``Optimizer``, ``LRScheduler``, ``_configure_apex_amp``.
-        # Here is a code example.
-        #
-        # .. code-block:: python
-        #
-        #     self.context = trial_context
-        #
-        #     self.a = self.context.Model(MyModelA())
-        #     self.b = self.context.Model(MyModelB())
-        #     self.opt1 = self.context.Optimizer(torch.optm.Adam(self.a))
-        #     self.opt2 = self.context.Optimizer(torch.optm.Adam(self.b))
-        #
-        #     (self.a, self.b), (self.opt1, self.opt2) = self.context._configure_apex_amp(
-        #         models=[self.a, self.b],
-        #         optimizers=[self.opt1, self.opt2],
-        #         num_losses=2,
-        #     )
-        #
-        #     self.lrs1 = context.LRScheduler(
-        #         lr_scheduler=LambdaLR(self.opt1, lr_lambda=lambda epoch: 0.95 ** epoch),
-        #         step_mode=LRScheduler.StepMode.STEP_EVERY_EPOCH,
-        #     ))
+        Alternatively, we could initialize them with the methods provided by
+        :py:class:`det.pytorch.PytorchTrialContext`, including ``Model``,
+        ``Optimizer``, ``LRScheduler``, ``configure_apex_amp``.
+        Here is a code example.
+
+        .. code-block:: python
+
+            self.context = trial_context
+
+            self.a = self.context.Model(MyModelA())
+            self.b = self.context.Model(MyModelB())
+            self.opt1 = self.context.Optimizer(torch.optm.Adam(self.a))
+            self.opt2 = self.context.Optimizer(torch.optm.Adam(self.b))
+
+            (self.a, self.b), (self.opt1, self.opt2) = self.context.configure_apex_amp(
+                models=[self.a, self.b],
+                optimizers=[self.opt1, self.opt2],
+                num_losses=2,
+            )
+
+            self.lrs1 = context.LRScheduler(
+                lr_scheduler=LambdaLR(self.opt1, lr_lambda=lambda epoch: 0.95 ** epoch),
+                step_mode=LRScheduler.StepMode.STEP_EVERY_EPOCH,
+            ))
+        """
         pass
 
     def build_model(self) -> nn.Module:
@@ -747,35 +745,33 @@ class PyTorchTrial(det.Trial):
         Calculate the loss for a batch and return it in a dictionary.
         :py:obj:`batch_idx` represents the total number of batches processed per
         device (slot) since the start of training.
+
+        If the models, optimizers, and LR schedulers are initialized in :meth:`__init__`
+        by users, users should calculate the gradients with the losses with :meth:`backward`
+        and call an optimization step for the optimizers with :meth:`step_optimizer`
+        on your own. Here is a code example.
+
+        .. code-block:: python
+
+            # Assume having initialized models, optimizers, and LR schedulers (when
+            # using manual mode): self.model1, self.model2, self.opt1, self.opt2, and self.lrs1.
+
+            # Calculate the losses using the models.
+            loss1 = self.model1(batch)
+            loss2 = self.model2(batch)
+
+            # Run backward passes on losses and step optimizers. These can happen
+            # in arbitrary orders.
+            self.context.backward(loss1)
+            self.context.backward(loss2)
+            self.context.step_optimizer(self.opt1)
+            self.context.step_optimizer(self.opt2)
+
+            # Step the learning rate.
+            self.lrs1.step()
+
+            return {"loss1": loss1, "loss2": loss2}
         """
-
-        # TODO(DET-3204): Add the following comments to the docstring.
-        # If the models, optimizers, and LR schedulers are initialized in :meth:`__init__`
-        # by users, users should calculate the gradients with the losses with :meth:`backward`
-        # and call an optimization step for the optimizers with :meth:`step_optimizer`
-        # on your own. Here is a code example.
-        #
-        # .. code-block:: python
-        #
-        #     # Assume having initialized models, optimizers, and LR schedulers (when
-        #     # using manual mode): self.model1, self.model2, self.opt1, self.opt2, and self.lrs1.
-        #
-        #     # Calculate the losses using the models.
-        #     loss1 = self.model1(batch)
-        #     loss2 = self.model2(batch)
-        #
-        #     # Run backward passes on losses and step optimizers. These can happen
-        #     # in arbitrary orders.
-        #     self.context.backward(loss1)
-        #     self.context.backward(loss2)
-        #     self.context.step_optimizer(self.opt1)
-        #     self.context.step_optimizer(self.opt2)
-        #
-        #     # Step the learning rate.
-        #     self.lrs1.step()
-        #
-        #     return {"loss1": loss1, "loss2": loss2}
-
         # TODO(DET-3267): deprecate the model argument when releasing pytorch flexible primitives.
         pass
 
